@@ -14,20 +14,18 @@
 ## 目录结构
 
 ```
-/os_exper
-├─ exper1/                  # 其他实验
-├─ exper2/                  # 任务调度器主体工程
-│  ├─ CMakeLists.txt
-│  ├─ EventDispatcher.hpp   # 调度器（模板，包含事件循环与依赖处理）
-│  ├─ Task.hpp              # MainTask/SubTask/CompletionEvent/SubTaskResult 等
-│  ├─ ThreadPool.hpp        # 线程池（支持返回 future）、异常兜底
-│  ├─ RingQueue.hpp         # 环形任务队列，基于信号量实现生产/消费
-│  ├─ Mutex.hpp / LockGuard.hpp / UniqueLock.hpp
-│  ├─ ConditionVariable.hpp # 基于信号量实现的条件变量（支持 notify_all）
-│  ├─ thread.hpp            # 对 pthread 的轻量封装
-│  ├─ main.cc               # 示例程序
-│  ├─ test.cc               # GTest 用例（复杂依赖/屏障/随机DAG/MapReduce/图像管线等）
-│  └─ build/                # 构建输出
+dependency-aware-task-scheduler/                  # 任务调度器主体工程
+├─ CMakeLists.txt
+├─ EventDispatcher.hpp   # 调度器（模板，包含事件循环与依赖处理）
+├─ Task.hpp              # MainTask/SubTask/CompletionEvent/SubTaskResult 等
+├─ ThreadPool.hpp        # 线程池（支持返回 future）、异常兜底
+├─ RingQueue.hpp         # 环形任务队列，基于信号量实现生产/消费
+├─ Mutex.hpp / LockGuard.hpp / UniqueLock.hpp
+├─ ConditionVariable.hpp # 基于信号量实现的条件变量（支持 notify_all）
+├─ thread.hpp            # 对 pthread 的轻量封装
+├─ main.cc               # 示例程序
+├─ test.cc               # GTest 用例（复杂依赖/屏障/随机DAG/MapReduce/图像管线等）
+└─ build/                # 构建输出
 └─ README.md                # 本文件
 ```
 
@@ -44,8 +42,7 @@
 ### 构建与运行
 
 ```bash
-# 构建 exper2
-cd exper2
+# 构建 dependency-aware-task-scheduler
 mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j
@@ -88,7 +85,7 @@ addMainTask / addSubTask
 
 ### 核心模块
 
-- `EventDispatcher<PoolSize>`（`exper2/EventDispatcher.hpp`）
+- `EventDispatcher<PoolSize>`（`EventDispatcher.hpp`）
   - 维护以下共享状态（均有互斥保护）：
     - 主任务：`main_tasks`、`main_task_name_to_id`、`main_to_subtasks`
     - 子任务：`sub_tasks`（值为 `std::shared_ptr<SubTask>`，避免 rehash 悬空）
@@ -105,11 +102,11 @@ addMainTask / addSubTask
   - `CompletionEvent`：`Mutex + ConditionVariable + done`，用于依赖者等待
   - `SubTaskResult`：`std::any result + std::exception_ptr error + sem_t semaphore`
 
-- `ThreadPool<N>`（`exper2/ThreadPool.hpp`）
+- `ThreadPool<N>`（`ThreadPool.hpp`）
   - `enqueue(F, Args...) -> std::future<invoke_result_t<...>>`
   - worker 捕获所有异常，避免 `std::terminate()` 杀死线程
 
-- `RingQueue<Task, Size>`（`exper2/RingQueue.hpp`）
+- `RingQueue<Task, Size>`（`RingQueue.hpp`）
   - 生产/消费信号量：`full/empty` + 互斥保护 head/tail，支持 Stop()
 
 - `Mutex/LockGuard/UniqueLock/ConditionVariable`
@@ -157,7 +154,7 @@ SubTask sum {"Sum",  "MainA", [=]{ long long s=0; for(auto v:*buffer) s+=v; retu
 
 ## 测试用例
 
-`exper2/test.cc` 包含多组高强度用例，覆盖：
+`test.cc` 包含多组高强度用例，覆盖：
 - 混合返回值（int/string/vector）、异常透传
 - 依赖顺序保证（A→B→C）、长关键路径（链长 50）
 - 三阶段屏障（Stage2 依赖全体 Stage1，Stage3 依赖全体 Stage2）
@@ -169,7 +166,7 @@ SubTask sum {"Sum",  "MainA", [=]{ long long s=0; for(auto v:*buffer) s+=v; retu
 
 运行：
 ```bash
-cd exper2/build
+cd build
 ./tests
 ```
 

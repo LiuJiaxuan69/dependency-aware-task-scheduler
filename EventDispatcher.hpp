@@ -57,25 +57,30 @@ public:
                 if (dep_task)
                 {
                     UniqueLock lock(dep_task->completion.m);
-                    while (!dep_task->completion.done) {
+                    while (!dep_task->completion.done)
+                    {
                         dep_task->completion.cv.wait(lock);
                     }
                 }
-                
             }
 
             std::any result;
             std::exception_ptr error;
-            try {
-            if (subtask->task_function) result = subtask->task_function();
-        } catch (...) {
-            error = std::current_exception();
-        }
+            try
+            {
+                if (subtask->task_function)
+                    result = subtask->task_function();
+            }
+            catch (...)
+            {
+                error = std::current_exception();
+            }
 
             {
                 LockGuard lock(subtask_results_mutex);
                 auto it = subtask_results.find(subtask_id);
-                if (it != subtask_results.end()) {
+                if (it != subtask_results.end())
+                {
                     auto slot = it->second;
                     slot->result = std::move(result);
                     slot->error = error;
@@ -149,7 +154,7 @@ public:
 
         { // 子任务尚未执行完
             LockGuard lock(sub_tasks_mutex);
-            for(const auto &entry: sub_tasks)
+            for (const auto &entry : sub_tasks)
             {
                 if (!entry.second->completed)
                 {
@@ -165,7 +170,7 @@ public:
     {
         // 将准备就绪的子任务按照优先级顺序分配给线程池执行
         LockGuard lock(ready_mutex);
-        for (auto& ready_subtask : ready_subtasks)
+        for (auto &ready_subtask : ready_subtasks)
         {
             while (!ready_subtask.empty())
             {
@@ -194,12 +199,14 @@ public:
         }
     }
 
-    std::any getSubTaskResult(const std::string& subtask_name) {
+    std::any getSubTaskResult(const std::string &subtask_name)
+    {
         size_t subtask_id;
         {
             LockGuard lock(sub_task_name_to_id_mutex);
             auto it = sub_task_name_to_id.find(subtask_name);
-            if (it == sub_task_name_to_id.end()) {
+            if (it == sub_task_name_to_id.end())
+            {
                 throw std::runtime_error("Subtask not found for name: " + subtask_name);
             }
             subtask_id = it->second;
@@ -209,7 +216,8 @@ public:
         {
             LockGuard lock(subtask_results_mutex);
             auto it = subtask_results.find(subtask_id);
-            if (it == subtask_results.end()) {
+            if (it == subtask_results.end())
+            {
                 throw std::runtime_error("Subtask result not found for ID: " + std::to_string(subtask_id));
             }
             slot = it->second;
@@ -237,10 +245,28 @@ public:
                 sub_tasks.erase(it);
             }
         }
-        if (error) std::rethrow_exception(error);
+        if (error)
+            std::rethrow_exception(error);
         return result;
     }
 
+    // ...existing code...
+
+    template <typename T>
+    T getSubTaskResultAs(const std::string &subtask_name)
+    {
+        std::any result = getSubTaskResult(subtask_name);
+        try
+        {
+            return std::any_cast<std::decay_t<T>>(result);
+        }
+        catch (const std::bad_any_cast &e)
+        {
+            throw std::runtime_error(
+                std::string("Type mismatch in getSubTaskResultAs: ") + e.what());
+        }
+    }
+    // ...existing code...
     void addSubTask(SubTask &&task)
     {
         size_t id = sub_task_id_allocator.allocate();
@@ -250,7 +276,8 @@ public:
         {
             LockGuard lock(main_task_name_to_id_mutex);
             auto it = main_task_name_to_id.find(task.main_task_name);
-            if (it == main_task_name_to_id.end()) {
+            if (it == main_task_name_to_id.end())
+            {
                 throw std::runtime_error("Main task not found for subtask: " + task.name);
             }
             main_id = it->second;
@@ -258,46 +285,46 @@ public:
         // if (main_it != main_task_name_to_id.end())
         // {
         //     size_t main_id = main_it->second;
-            task.main_task_id = main_id;
-            // {
-            //     LockGuard lock(main_tasks_mutex);
-            //     task.depend_count = main_tasks.find(main_id)->second->subtask_size - 1;
-            // }
+        task.main_task_id = main_id;
+        // {
+        //     LockGuard lock(main_tasks_mutex);
+        //     task.depend_count = main_tasks.find(main_id)->second->subtask_size - 1;
+        // }
+        {
+            LockGuard lock(sub_task_name_to_id_mutex);
+            sub_task_name_to_id[task.name] = id;
+        }
+        {
+            LockGuard lock(sub_tasks_mutex);
+            sub_tasks.insert({id, std::make_shared<SubTask>(std::move(task))});
+        }
+        {
+            LockGuard lock(main_to_subtasks_mutex);
+            main_to_subtasks[main_id].push_back(id);
+        }
+        {
+            LockGuard lock(subtask_results_mutex);
+            subtask_results.emplace(id, std::make_shared<SubTaskResult>());
+        }
+        // 初始化依赖状态
+        main_tasks_mutex.lock();
+        std::shared_ptr<MainTask> main_task = main_tasks.find(main_id)->second;
+        main_tasks_mutex.unlock();
+        if (++main_task->ready_subtasks == main_task->subtask_size)
+        {
+            // 所有子任务就绪，将所有子任务提交到子任务就绪队列当中并将主任务出队
             {
-                LockGuard lock(sub_task_name_to_id_mutex);
-                sub_task_name_to_id[task.name] = id;
-            }
-            {
-                LockGuard lock(sub_tasks_mutex);
-                sub_tasks.insert({id, std::make_shared<SubTask>(std::move(task))});
-            }
-            {
-                LockGuard lock(main_to_subtasks_mutex);
-                main_to_subtasks[main_id].push_back(id);
-            }
-            {
-                LockGuard lock(subtask_results_mutex);
-                subtask_results.emplace(id, std::make_shared<SubTaskResult>());
-            }
-            // 初始化依赖状态
-            main_tasks_mutex.lock();
-            std::shared_ptr<MainTask> main_task = main_tasks.find(main_id)->second;
-            main_tasks_mutex.unlock();
-            if (++main_task->ready_subtasks == main_task->subtask_size)
-            {
-                // 所有子任务就绪，将所有子任务提交到子任务就绪队列当中并将主任务出队
+                LockGuard lock(ready_mutex);
+                for (size_t sub_id : main_to_subtasks[main_id])
                 {
-                    LockGuard lock(ready_mutex);
-                    for (size_t sub_id : main_to_subtasks[main_id])
-                    {
-                        ready_subtasks[static_cast<size_t>(main_task->priority)].push(sub_id);
-                    }
-                    {
-                        LockGuard lock(waiting_maintasks_mutex);
-                        waiting_maintasks[static_cast<size_t>(main_task->priority)].erase(main_id);
-                    }
+                    ready_subtasks[static_cast<size_t>(main_task->priority)].push(sub_id);
+                }
+                {
+                    LockGuard lock(waiting_maintasks_mutex);
+                    waiting_maintasks[static_cast<size_t>(main_task->priority)].erase(main_id);
                 }
             }
+        }
         // }
         // else
         // {
@@ -307,8 +334,8 @@ public:
     void Stop()
     {
         is_running.store(false, std::memory_order_release);
-        if(event_loop_thread.joinable())
-        event_loop_thread.join();
+        if (event_loop_thread.joinable())
+            event_loop_thread.join();
     }
 
 private:

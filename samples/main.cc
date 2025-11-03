@@ -9,7 +9,9 @@ int main() {
     EventDispatcher<thread_pool_size>& dispathcer = EventDispatcher<thread_pool_size>::getInstance();
     dispathcer.start();
     // 添加主任务和子任务的代码示例
+    // 创建主任务
     dispathcer.addMainTask({"MainTask1", 5, Priority::HIGH});
+    // 创建 5 个子任务
     auto subtask1 = SubTask("SubTask1", "MainTask1", []() {
         std::cout << "Executing SubTask1" << std::endl;
         return 42; // 示例返回值
@@ -30,6 +32,7 @@ int main() {
         std::cout << "Executing SubTask5" << std::endl;
         return std::string("Hello from SubTask5"); // 示例返回值
     });
+    // 创建依赖关系
     subtask2.dependencies = {"SubTask1"}; // SubTask2 依赖 SubTask1
     subtask4.dependencies = {"SubTask1"}; // SubTask4 依赖 SubTask1
     subtask3.dependencies = {"SubTask2", "SubTask4"}; // SubTask3 依赖 SubTask2 和 SubTask4
@@ -70,16 +73,16 @@ int main() {
     dispathcer.addSubTask(std::move(subtask6));
     dispathcer.addSubTask(std::move(subtask7));
     dispathcer.addSubTask(std::move(subtask9));
-    auto result1 = std::any_cast<int>(dispathcer.getSubTaskResult("SubTask1")); // 获取 SubTask1 的结果
-    auto result2 = std::any_cast<std::string>(dispathcer.getSubTaskResult("SubTask2")); // 获取 SubTask2 的结果
-    auto result3 = std::any_cast<double>(dispathcer.getSubTaskResult("SubTask3")); // 获取 SubTask3 的结果
-    auto result4 = std::any_cast<int>(dispathcer.getSubTaskResult("SubTask4")); // 获取 SubTask4 的结果
-    auto result5 = std::any_cast<std::string>(dispathcer.getSubTaskResult("SubTask5")); // 获取 SubTask5
-    auto result6 = std::any_cast<int>(dispathcer.getSubTaskResult("SubTask6")); // 获取 SubTask6 的结果
-    auto result7 = std::any_cast<std::string>(dispathcer.getSubTaskResult("SubTask7")); // 获取 SubTask7 的结果
-    auto result8 = std::any_cast<double>(dispathcer.getSubTaskResult("SubTask8")); // 获取 SubTask8 的结果
-    auto result9 = std::any_cast<int>(dispathcer.getSubTaskResult("SubTask9")); // 获取 SubTask9 的结果
-    auto result10 = std::any_cast<std::string>(dispathcer.getSubTaskResult("SubTask10")); // 获取 SubTask10 的结果
+    auto result1 = dispathcer.getSubTaskResultAs<int>("SubTask1"); // 获取 SubTask1 的结果
+    auto result2 = dispathcer.getSubTaskResultAs<std::string>("SubTask2"); // 获取 SubTask2 的结果
+    auto result3 = dispathcer.getSubTaskResultAs<double>("SubTask3"); // 获取 SubTask3 的结果
+    auto result4 = dispathcer.getSubTaskResultAs<int>("SubTask4"); // 获取 SubTask4 的结果
+    auto result5 = dispathcer.getSubTaskResultAs<std::string>("SubTask5"); // 获取 SubTask5
+    auto result6 = dispathcer.getSubTaskResultAs<int>("SubTask6"); // 获取 SubTask6 的结果
+    auto result7 = dispathcer.getSubTaskResultAs<std::string>("SubTask7"); // 获取 SubTask7 的结果
+    auto result8 = dispathcer.getSubTaskResultAs<double>("SubTask8"); // 获取 SubTask8 的结果
+    auto result9 = dispathcer.getSubTaskResultAs<int>("SubTask9"); // 获取 SubTask9 的结果
+    auto result10 = dispathcer.getSubTaskResultAs<std::string>("SubTask10"); // 获取 SubTask10 的结果
     std::cout << "Result of SubTask1: " << result1 << std::endl;
     std::cout << "Result of SubTask2: " << result2 << std::endl;
     std::cout << "Result of SubTask3: " << result3 << std::endl;

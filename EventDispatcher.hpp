@@ -170,12 +170,14 @@ public:
     {
         // 将准备就绪的子任务按照优先级顺序分配给线程池执行
         LockGuard lock(ready_mutex);
-        for (auto &ready_subtask : ready_subtasks)
+        // 按优先级从高到低分配，确保高优先级先于低优先级被调度
+        for (int pri = static_cast<int>(Priority::HIGHEST); pri >= static_cast<int>(Priority::LOWEST); --pri)
         {
-            while (!ready_subtask.empty())
+            auto &queue = ready_subtasks[static_cast<size_t>(pri)];
+            while (!queue.empty())
             {
-                int subtask_id = ready_subtask.front();
-                ready_subtask.pop();
+                int subtask_id = queue.front();
+                queue.pop();
                 auto func = wrapSubTask(subtask_id);
                 thread_pool.enqueue(func);
             }
@@ -250,7 +252,6 @@ public:
         return result;
     }
 
-    // ...existing code...
 
     template <typename T>
     T getSubTaskResultAs(const std::string &subtask_name)
@@ -266,7 +267,6 @@ public:
                 std::string("Type mismatch in getSubTaskResultAs: ") + e.what());
         }
     }
-    // ...existing code...
     void addSubTask(SubTask &&task)
     {
         size_t id = sub_task_id_allocator.allocate();
@@ -282,14 +282,7 @@ public:
             }
             main_id = it->second;
         }
-        // if (main_it != main_task_name_to_id.end())
-        // {
-        //     size_t main_id = main_it->second;
         task.main_task_id = main_id;
-        // {
-        //     LockGuard lock(main_tasks_mutex);
-        //     task.depend_count = main_tasks.find(main_id)->second->subtask_size - 1;
-        // }
         {
             LockGuard lock(sub_task_name_to_id_mutex);
             sub_task_name_to_id[task.name] = id;
@@ -325,11 +318,6 @@ public:
                 }
             }
         }
-        // }
-        // else
-        // {
-        //     throw std::runtime_error("Main task not found for subtask: " + task.name);
-        // }
     }
     void Stop()
     {
